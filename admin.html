@@ -1,0 +1,167 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>AVERON Admin</title><link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="/fonts.css">
+<style>
+:root{--bg:#070a17;--card:#10162e;--line:rgba(255,255,255,.1);--tx:#f2f4ff;--mut:#9aa3c7;--grad:linear-gradient(135deg,#a066ff,#3d8bff)}
+*{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--tx);font-family:"Instrument Sans",sans-serif;line-height:1.5;min-height:100vh}
+a{color:#8fb4ff}.wrap{width:min(920px,94%);margin:0 auto;padding:22px 0 80px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+header .lg{display:flex;align-items:center;gap:12px;font:800 20px "Bricolage Grotesque",sans-serif;letter-spacing:.15em}header img{width:40px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.tabs button,.btn{padding:13px 22px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:#fff;font:700 15px "Instrument Sans",sans-serif;cursor:pointer}
+.tabs button.on,.btn.main{background:var(--grad);border:0}.btn.red{background:#3b1220;border-color:#6b2038;color:#ff9db5}.btn.sm{padding:9px 15px;font-size:13px}
+.btn:disabled{opacity:.5}
+.box{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin-bottom:18px}
+h2{font:800 22px "Bricolage Grotesque",sans-serif;margin-bottom:6px}.hint{color:var(--mut);font-size:14px;margin-bottom:16px}
+label{display:block;font-weight:700;font-size:14px;margin:16px 0 6px}
+input,textarea,select{width:100%;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:#0a0f22;color:#fff;font:500 16px "Instrument Sans",sans-serif;outline:0}
+input:focus,textarea:focus,select:focus{border-color:#8b5cf6}textarea{min-height:110px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:620px){.two{grid-template-columns:1fr}}
+.pr{display:flex;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--line);flex-wrap:wrap}.pr:first-child{border:0}
+.pr .th{width:96px;height:60px;border-radius:10px;background:linear-gradient(135deg,#1a1450,#0f2a66);object-fit:cover;flex:none}
+.pr .nm{flex:1;min-width:150px}.pr .nm b{display:block}.pr .nm small{color:var(--mut)}
+.pr .ac{display:flex;gap:6px;flex-wrap:wrap}
+.tag{display:inline-block;font-size:12px;padding:3px 10px;border-radius:99px;background:rgba(255,255,255,.08);margin-right:6px}.tag.g{background:rgba(61,220,151,.18);color:#3ddc97}
+.drop{border:2px dashed var(--line);border-radius:16px;padding:22px;text-align:center;color:var(--mut)}
+.prog{height:8px;border-radius:9px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:12px;display:none}.prog i{display:block;height:100%;width:0;background:var(--grad)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#fff;color:#0a0e20;padding:13px 22px;border-radius:14px;font-weight:700;display:none;z-index:9;max-width:92%}
+#toast.bad{background:#ff6b8a;color:#fff}
+.msg{padding:16px 0;border-top:1px solid var(--line)}.msg:first-of-type{border:0}.msg p{white-space:pre-wrap;margin:6px 0 10px}.msg.new b::after{content:" NEW";color:#3ddc97;font-size:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:10px;margin-bottom:10px}@media(max-width:620px){.row2{grid-template-columns:1fr}}
+.login{max-width:380px;margin:12vh auto}
+</style></head><body>
+<div class="wrap" id="app"></div><div id="toast"></div>
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const app=$("#app"); let tab="sites", projects=[], settings={}, editing=null, inboxTimer=null, inboxBusy=false;
+function toast(t,bad){const e=$("#toast");e.textContent=t;e.className=bad?"bad":"";e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",3600);}
+async function api(url,opt={}){
+  const o={credentials:"same-origin",cache:"no-store",...opt}; if(opt.json!==undefined){o.method=o.method||"POST";o.headers={"Content-Type":"application/json"};o.body=JSON.stringify(opt.json);}
+  const r=await fetch(url,o); const j=await r.json().catch(()=>({}));
+  if(r.status===401&&!url.includes("login")){showLogin();throw new Error(j.error||"Please log in");}
+  if(!r.ok) throw new Error(j.error||"Something went wrong"); return j;
+}
+function showLogin(){
+  app.innerHTML='<div class="box login"><div style="text-align:center;margin-bottom:18px"><img src="/img/mark.png" width="56"><h2 style="margin-top:10px">AVERON Admin</h2><p class="hint">Type your password to enter.</p></div><form id="lf"><input type="password" id="pw" placeholder="Password" autocomplete="current-password" autofocus><button class="btn main" style="width:100%;margin-top:14px">Log in</button></form></div>';
+  $("#lf").onsubmit=async e=>{e.preventDefault();try{await api("/api/admin/login",{json:{password:$("#pw").value}});start();}catch(err){toast(err.message,1);}};
+}
+async function start(){
+  try{await api("/api/admin/me");}catch{return showLogin();}
+  await Promise.all([loadProjects(),loadSettings()]); render();
+}
+const loadProjects=async()=>projects=await api("/api/admin/projects");
+const loadSettings=async()=>settings=await api("/api/admin/settings");
+function render(){
+  clearInterval(inboxTimer); inboxTimer=null;
+  app.innerHTML='<header><div class="lg"><img src="/img/mark.png">AVERON ADMIN</div><div style="display:flex;gap:8px"><a class="btn sm" href="/" target="_blank" style="text-decoration:none;color:#fff">View my site ↗</a><button class="btn sm" id="out">Log out</button></div></header>'+
+  '<div class="tabs">'+[["sites","My websites"],["add",editing?"Edit website":"+ Add a website"],["settings","Site details"],["inbox","Messages"]].map(t=>'<button data-t="'+t[0]+'" class="'+(tab===t[0]?"on":"")+'">'+t[1]+'</button>').join("")+'</div><div id="pane"></div>';
+  $("#out").onclick=async()=>{await api("/api/admin/logout",{method:"POST"});showLogin();};
+  $$(".tabs button").forEach(b=>b.onclick=()=>{ if(b.dataset.t==="add"&&tab!=="add") editing=null; tab=b.dataset.t; render(); });
+  ({sites:paneSites,add:paneAdd,settings:paneSettings,inbox:paneInbox})[tab]();
+}
+/* ---- list ---- */
+function paneSites(){
+  const p=$("#pane");
+  if(!projects.length){p.innerHTML='<div class="box" style="text-align:center"><h2>No websites yet</h2><p class="hint">Click the button to add your first website.</p><button class="btn main" id="go">+ Add a website</button></div>';$("#go").onclick=()=>{tab="add";editing=null;render();};return;}
+  p.innerHTML='<div class="box">'+projects.map((x,i)=>'<div class="pr" data-id="'+x.id+'">'+(x.poster?'<img class="th" src="'+x.poster+'">':x.video&&x.video.kind==="file"?'<video class="th" muted preload="metadata" src="'+x.video.src+'#t=0.5"></video>':'<div class="th"></div>')+
+   '<div class="nm"><b>'+esc(x.title)+'</b><small>'+(x.link?esc(x.link):"no link yet")+'</small><div style="margin-top:4px"><span class="tag '+(x.published?"g":"")+'">'+(x.published?"Showing":"Hidden")+'</span><span class="tag">'+(x.video?(x.video.kind==="iframe"?"video link":"video"):"no video")+'</span></div></div>'+
+   '<div class="ac"><button class="btn sm" data-a="up"'+(i?"":" disabled")+'>↑</button><button class="btn sm" data-a="down"'+(i<projects.length-1?"":" disabled")+'>↓</button><button class="btn sm" data-a="edit">Edit</button><button class="btn sm red" data-a="del">Delete</button></div></div>').join("")+'</div>';
+  $$(".pr button",p).forEach(b=>b.onclick=async()=>{
+    const id=+b.closest(".pr").dataset.id, a=b.dataset.a, x=projects.find(q=>q.id===id);
+    try{
+      if(a==="edit"){editing=x;tab="add";return render();}
+      if(a==="del"){ if(!confirm('Delete "'+x.title+'" and its video? This cannot be undone.'))return; await api("/api/admin/projects/"+id,{method:"DELETE"}); toast("Deleted"); }
+      else await api("/api/admin/projects/"+id+"/move",{json:{dir:a}});
+      await loadProjects(); render();
+    }catch(e){toast(e.message,1);}
+  });
+}
+/* ---- add / edit ---- */
+function paneAdd(){
+  const x=editing||{title:"",tagline:"",description:"",category:"",year:String(new Date().getFullYear()),link:"",video_type:"upload",video_url:"",video_media:null,poster_media:null,published:true};
+  let st={video_media:x.video_media,poster_media:x.poster_media,vname:x.video_media?"Current video is kept":"",busy:false};
+  $("#pane").innerHTML='<form class="box" id="pf"><h2>'+(editing?"Edit website":"Add a website")+'</h2><p class="hint">Fill what you know. Only the name is needed.</p>'+
+  '<label>Website name *</label><input id="title" value="'+esc(x.title)+'" placeholder="e.g. AVERON Store" maxlength="120">'+
+  '<label>One short line about it</label><input id="tagline" value="'+esc(x.tagline)+'" placeholder="e.g. A fashion store with orders and admin" maxlength="200">'+
+  '<div class="two"><div><label>Type</label><input id="category" list="cats" value="'+esc(x.category)+'" placeholder="Online Store"><datalist id="cats"><option>Online Store<option>Business Website<option>Portfolio<option>Landing Page<option>Brand</datalist></div><div><label>Year</label><input id="year" value="'+esc(x.year)+'" maxlength="10"></div></div>'+
+  '<label>Live link of the website</label><input id="link" value="'+esc(x.link)+'" placeholder="https://averon-store-seven.vercel.app" inputmode="url">'+
+  '<label>Longer description (optional)</label><textarea id="description" placeholder="What you built, tools used, what it does...">'+esc(x.description)+'</textarea>'+
+  '<label>Video of the website</label><select id="vt"><option value="upload">Upload a video from my phone/laptop</option><option value="link">Paste a video link (YouTube, Vimeo, Loom)</option><option value="none">No video</option></select>'+
+  '<div id="vbox"></div>'+
+  '<label>Cover picture (optional)</label><div class="drop"><input type="file" id="pic" accept="image/*"><div id="pname" style="margin-top:8px">'+(x.poster_media?"Current picture is kept":"If you skip this, the video's first moment is used.")+'</div></div>'+
+  '<label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="pub" style="width:22px;height:22px" '+(x.published?"checked":"")+'> Show this website on my portfolio</label>'+
+  '<div style="display:flex;gap:10px;margin-top:22px;flex-wrap:wrap"><button class="btn main" id="save">'+(editing?"Save changes":"Save website")+'</button><button type="button" class="btn" id="cancel">Cancel</button></div></form>';
+  $("#vt").value=x.video_type;
+  const vbox=()=>{const t=$("#vt").value;
+    $("#vbox").innerHTML= t==="upload"?'<div class="drop"><input type="file" id="vf" accept="video/*"><div id="vname" style="margin-top:8px">'+esc(st.vname||"Choose your video (max 150 MB). It uploads right away.")+'</div><div class="prog" id="prog"><i></i></div></div>'
+      : t==="link"?'<input id="vurl" value="'+esc(x.video_url)+'" placeholder="https://www.youtube.com/watch?v=..." inputmode="url">':'';
+    const f=$("#vf"); if(f) f.onchange=()=>upload(f.files[0],"video_media",true);};
+  $("#vt").onchange=vbox; vbox();
+  $("#pic").onchange=()=>upload($("#pic").files[0],"poster_media",false);
+  $("#cancel").onclick=()=>{editing=null;tab="sites";render();};
+  async function shrink(file){ // make big pictures smaller so they upload fast
+    if(!file.type.startsWith("image/")||file.size<600000) return file;
+    const bm=await createImageBitmap(file), k=Math.min(1,1600/Math.max(bm.width,bm.height)), c=document.createElement("canvas"); c.width=bm.width*k;c.height=bm.height*k; c.getContext("2d").drawImage(bm,0,0,c.width,c.height);
+    return await new Promise(r=>c.toBlob(b=>r(new File([b],file.name.replace(/\.\w+$/,"")+".jpg",{type:"image/jpeg"})),"image/jpeg",.85));
+  }
+  async function upload(file,key,isVideo){
+    if(!file)return; st.busy=true; $("#save").disabled=true; const label=isVideo?$("#vname"):$("#pname"), bar=$("#prog");
+    try{
+      file=await shrink(file);
+      if(isVideo&&file.size>150*1024*1024) throw new Error("Video is bigger than 150 MB. Make it shorter or paste a YouTube link.");
+      const m=await api("/api/admin/media",{json:{name:file.name,mime:file.type||"video/mp4",size:file.size}});
+      const n=Math.ceil(file.size/m.chunk); if(bar)bar.style.display="block";
+      for(let i=0;i<n;i++){
+        const part=file.slice(i*m.chunk,(i+1)*m.chunk); let ok=false,err;
+        for(let t=0;t<3&&!ok;t++){ try{ await api("/api/admin/media/"+m.id+"/"+i,{method:"PUT",headers:{"Content-Type":"application/octet-stream"},body:part}); ok=true; }catch(e){err=e;await new Promise(r=>setTimeout(r,800));} }
+        if(!ok) throw err;
+        const pct=Math.round((i+1)/n*100); label.textContent="Uploading "+file.name+" ... "+pct+"%"; if(bar)$("i",bar).style.width=pct+"%";
+      }
+      await api("/api/admin/media/"+m.id+"/done",{method:"POST"});
+      if(st[key]&&st[key]!==x[key]) api("/api/admin/media/"+st[key],{method:"DELETE"}).catch(()=>{});
+      st[key]=m.id; label.textContent="✔ "+file.name+" is ready"; toast("Uploaded ✔");
+    }catch(e){label.textContent="Failed: "+e.message;toast(e.message,1);}
+    st.busy=false; $("#save").disabled=false;
+  }
+  $("#pf").onsubmit=async e=>{e.preventDefault();
+    if(st.busy) return toast("Please wait for the upload to finish",1);
+    const vt=$("#vt").value;
+    if(vt==="upload"&&!st.video_media) return toast("Choose a video first, or change to 'No video'",1);
+    const body={title:$("#title").value,tagline:$("#tagline").value,category:$("#category").value,year:$("#year").value,link:$("#link").value,description:$("#description").value,video_type:vt,video_url:vt==="link"?$("#vurl").value:"",video_media:vt==="upload"?st.video_media:null,poster_media:st.poster_media,published:$("#pub").checked};
+    try{ if(editing) await api("/api/admin/projects/"+editing.id,{method:"PUT",json:body}); else await api("/api/admin/projects",{json:body});
+      toast("Saved ✔"); editing=null; tab="sites"; await loadProjects(); render();
+    }catch(err){toast(err.message,1);}
+  };
+}
+/* ---- settings ---- */
+function paneSettings(){
+  const s=settings, f=(id,l,ph="")=>'<label>'+l+'</label><input id="'+id+'" value="'+esc(s[id])+'" placeholder="'+ph+'">';
+  $("#pane").innerHTML='<form class="box" id="sf"><h2>Site details</h2><p class="hint">These words appear on your portfolio.</p>'+f("ownerName","Your name")+f("heroLine","Line under your name")+f("roles","Changing roles (separate with a dot ·)","Frontend Developer · Web Designer")+f("city","Small badge text","Open to projects worldwide")+
+  '<label>About me</label><textarea id="about" style="min-height:150px">'+esc(s.about)+'</textarea>'+
+  '<div class="two"><div>'+f("whatsapp","WhatsApp number (country code, numbers only)","2348034856578")+'</div><div>'+f("email","Email")+'</div></div>'+
+  '<div class="two"><div>'+f("instagram","Instagram link")+'</div><div>'+f("twitter","X / Twitter link")+'</div><div>'+f("linkedin","LinkedIn link")+'</div><div>'+f("github","GitHub link")+'</div><div>'+f("upwork","Upwork link")+'</div></div>'+
+  '<div style="margin-top:24px"><button class="btn main">Save details</button></div></form>';
+  $("#sf").onsubmit=async e=>{e.preventDefault(); const g=id=>$("#"+id).value;
+    const body={ownerName:g("ownerName"),heroLine:g("heroLine"),roles:g("roles"),city:g("city"),about:g("about"),whatsapp:g("whatsapp"),email:g("email"),instagram:g("instagram"),twitter:g("twitter"),linkedin:g("linkedin"),github:g("github"),upwork:g("upwork")};
+    try{await api("/api/admin/settings",{method:"PUT",json:body});await loadSettings();toast("Saved ✔");}catch(err){toast(err.message,1);}};
+}
+/* ---- inbox ---- */
+async function paneInbox(){
+  const p=$("#pane");
+  async function loadMessages(showLoading=false){
+    if(inboxBusy||tab!=="inbox")return; inboxBusy=true;
+    if(showLoading)p.innerHTML='<div class="box">Loading messages...</div>';
+    try{
+      const m=await api("/api/admin/messages"); if(tab!=="inbox")return;
+      p.innerHTML='<div class="box"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h2>Messages</h2><button class="btn sm" id="refreshMessages" type="button">Refresh</button></div><p class="hint">Contact form messages · updates automatically every 30 seconds</p>'+(m.length?m.map(x=>'<div class="msg '+(x.is_read?"":"new")+'" data-id="'+x.id+'"><b>'+esc(x.name)+'</b> <small style="color:var(--mut)">'+esc(x.created_at)+' UTC</small>'+(x.email?'<div><a href="mailto:'+esc(x.email)+'">'+esc(x.email)+'</a></div>':"")+'<p>'+esc(x.message)+'</p><button class="btn sm" data-a="read">Mark read</button> <button class="btn sm red" data-a="del">Delete</button></div>').join(""):'<p style="color:var(--mut)">No messages yet. New submissions will appear here.</p>')+'</div>';
+      $("#refreshMessages").onclick=()=>loadMessages(true);
+      $$(".msg button",p).forEach(b=>b.onclick=async()=>{const id=b.closest(".msg").dataset.id; try{ if(b.dataset.a==="del"){if(!confirm("Delete this message?"))return;await api("/api/admin/messages/"+id,{method:"DELETE"});}else await api("/api/admin/messages/"+id+"/read",{method:"POST"}); inboxBusy=false; await loadMessages(true);}catch(e){toast(e.message,1);}});
+    }catch(e){if(tab==="inbox")p.innerHTML='<div class="box">'+esc(e.message)+' <button class="btn sm" id="retryMessages" type="button">Try again</button></div>'; const retry=$("#retryMessages"); if(retry)retry.onclick=()=>loadMessages(true);}
+    finally{inboxBusy=false;}
+  }
+  p.innerHTML='<div class="box">Loading messages...</div>';
+  await loadMessages();
+  if(tab==="inbox")inboxTimer=setInterval(()=>loadMessages(),30000);
+}
+start();
+</script></body></html>
