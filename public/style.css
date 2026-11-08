@@ -436,3 +436,12 @@ footer{padding:22px var(--pad) 30px;background:transparent;border-color:rgba(255
 @media(max-width:820px){.links{background:rgba(8,11,17,.98)}.links a{font-size:clamp(28px,7vw,40px)}.links a.cta{background:var(--tx);color:#10141a}.hero{min-height:88svh;padding-top:120px;padding-bottom:80px}.hero-foot{align-items:flex-start;flex-direction:column}.hero-foot .row{width:100%}.hero-foot .row .btn{width:100%;white-space:normal}.dock{background:rgba(13,18,25,.95);border:1px solid rgba(236,241,245,.13);backdrop-filter:blur(12px)}.dock a{font-size:10px}.contact .lnk{grid-template-columns:85px 1fr}.wafab{bottom:88px}.grid,.grid[data-n="2"],.grid[data-n="1"]{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:560px){.hero{padding-top:115px}.hero h1.name{font-size:clamp(34px,10.8vw,64px)}.hero-tags span{font-size:9px;padding:6px 8px}.stack{grid-template-columns:1fr}.stack .tech:nth-child(1){grid-column:auto}.step h3{font-size:19px}.sec-h h2{font-size:clamp(40px,11vw,60px)}.about .big{font-size:27px}.card-me{padding:20px}.dock{left:14px;right:14px;bottom:12px}.wafab{right:18px;bottom:82px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* Phone dock: use the available width so all four links remain visible. */
+@media(max-width:560px){
+ .hero{padding-bottom:calc(112px + env(safe-area-inset-bottom))}
+ .hero h1.name{font-size:clamp(30px,9.4vw,54px)}
+ .hero h1.name .ln:first-child{white-space:nowrap}
+ .dock{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));width:auto;max-width:none;translate:0 0;justify-content:space-around}
+ .dock a{flex:1;min-width:0;padding-inline:clamp(7px,2.2vw,12px)}
+}
